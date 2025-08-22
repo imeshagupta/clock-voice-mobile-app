@@ -1,43 +1,81 @@
 import React, { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text, View, FlatList } from 'react-native';
+import {
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+  FlatList,
+  Platform,
+  Alert,
+} from 'react-native';
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
-import Voice from '@react-native-voice/voice';
+import DateTimePicker from '@react-native-community/datetimepicker';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import PushNotification from 'react-native-push-notification';
 
-import { loadAlarms, handleSpeechResults } from './AlarmUtils';
+const STORAGE_KEY = 'ALARMS_LIST';
 
 const Alarm = () => {
   const [alarms, setAlarms] = useState([]);
+  const [showPicker, setShowPicker] = useState(false);
+
+  const loadAlarms = async () => {
+    try {
+      const stored = await AsyncStorage.getItem(STORAGE_KEY);
+      if (stored) {
+        setAlarms(JSON.parse(stored));
+      }
+    } catch (err) {
+      console.warn('Error loading alarms:', err);
+    }
+  };
+
+  const saveAlarms = async data => {
+    try {
+      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    } catch (err) {
+      console.warn('Error saving alarms:', err);
+    }
+  };
 
   useEffect(() => {
-    loadAlarms(setAlarms); // Run once on mount
+    loadAlarms();
 
-    Voice.onSpeechResults = e => {
-      if (e.value) {
-        handleSpeechResults(e.value[0], alarmsRef.current, setAlarms);
-      }
-    };
-
-    return () => {
-      Voice.destroy().then(Voice.removeAllListeners);
-    };
+    PushNotification.createChannel({
+      channelId: 'alarm-channel',
+      channelName: 'Alarm Notifications',
+    });
   }, []);
 
-  const alarmsRef = React.useRef([]);
-  useEffect(() => {
-    alarmsRef.current = alarms; // Keep current alarms accessible
-  }, [alarms]);
+  const addAlarm = (event, selectedDate) => {
+    setShowPicker(false);
 
-  const startListening = async () => {
-    try {
-      if (Voice) {
-        await Voice.start('en-US');
-      } else {
-        console.warn('Voice module is not loaded');
-      }
-    } catch (e) {
-      console.error('Voice start error:', e);
-    }
+    if (!selectedDate || event.type === 'dismissed') return;
+
+    const alarmTime = selectedDate;
+
+    const newAlarm = {
+      id: Date.now().toString(),
+      time: alarmTime.toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit',
+      }),
+      date: alarmTime,
+    };
+
+    const updated = [...alarms, newAlarm];
+    setAlarms(updated);
+    saveAlarms(updated);
+
+    PushNotification.localNotificationSchedule({
+      channelId: 'alarm-channel',
+      message: `Alarm for ${newAlarm.time}`,
+      date: alarmTime,
+      allowWhileIdle: true,
+    });
+
+    Alert.alert('✅ Alarm Set', `Your alarm is set for ${newAlarm.time}`);
   };
 
   const renderItem = ({ item }) => (
@@ -47,36 +85,48 @@ const Alarm = () => {
         <Text style={styles.grayText}>Ring Once</Text>
       </View>
       <View style={{ alignSelf: 'center' }}>
-        <FontAwesome name="toggle-off" size={28} color="white" />
+        <FontAwesome name="toggle-on" size={28} color="white" />
       </View>
     </View>
   );
 
   return (
     <View style={styles.container}>
+      {/* Header */}
       <View style={styles.header}>
         <Text style={styles.headingText}>Alarm</Text>
         <View style={{ flexDirection: 'row' }}>
           <Text style={styles.subHeadingText}>{alarms.length} alarms | </Text>
           <Text style={styles.subHeadingText}>
-            {alarms.length > 0
-              ? 'Tap + and speak to add/delete'
-              : 'All Alarms are turned off.'}
+            {alarms.length > 0 ? 'Tap + to add alarm' : 'No alarms set'}
           </Text>
         </View>
       </View>
 
+      {/* List of Alarms */}
       <FlatList
         data={alarms}
         renderItem={renderItem}
-        keyExtractor={item => item.id.toString()}
+        keyExtractor={(item, index) => String(item?.id ?? index)}
       />
 
+      {/* Add Button */}
       <View style={styles.buttonView}>
-        <Pressable style={styles.addButton} onPress={startListening}>
+        <Pressable style={styles.addButton} onPress={() => setShowPicker(true)}>
           <MaterialIcons name="add" size={24} color="white" />
         </Pressable>
       </View>
+
+      {/* DateTime Picker */}
+      {showPicker && (
+        <DateTimePicker
+          value={new Date()}
+          mode="time"
+          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+          is24Hour={false}
+          onChange={addAlarm}
+        />
+      )}
     </View>
   );
 };

@@ -71,6 +71,9 @@ def enableProguardInReleaseBuilds = false
  * this variant is about 6MiB larger per architecture than default.
  */
 def jscFlavor = 'io.github.react-native-community:jsc-android:2026004.+'
+project.ext.react = [
+    enableHermes: false  // 🔧 Disable Hermes engine
+]
 
 android {
     ndkVersion rootProject.ext.ndkVersion
