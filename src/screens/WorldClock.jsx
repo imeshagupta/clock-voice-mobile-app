@@ -61,7 +61,7 @@ const WorldClock = () => {
       if (saved) {
         setClocks(JSON.parse(saved));
       } else {
-        // Default: Delhi (Asia/Kolkata)
+      
         const defaultClock = [
           {
             name: 'Delhi',
@@ -110,19 +110,17 @@ const WorldClock = () => {
     }
 
     const normalize = str => str.trim().toLowerCase().replace(/\s+/g, '_');
-
     const inputNormalized = normalize(cityInput);
 
-    // Try to match user input with any part of the timezone path
     const matchedTimeZone = allTimeZones.find(zone => {
-      const zoneParts = zone.split('/');
-      return zoneParts.some(part => normalize(part) === inputNormalized);
+      const zoneLower = zone.toLowerCase();
+      return zoneLower.includes(inputNormalized);
     });
 
     if (!matchedTimeZone) {
       Alert.alert(
         'City not found',
-        'Try using major cities (e.g., Tokyo, Paris)',
+        'Try using major cities (e.g., Tokyo, Paris, New York)',
       );
       return;
     }

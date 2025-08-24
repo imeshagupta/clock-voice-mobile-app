@@ -1,8 +1,8 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
+const STORAGE_KEY = 'ALARMS_LIST';
 
 export const loadAlarms = async setAlarms => {
   try {
-    const saved = await AsyncStorage.getItem('alarms');
+    const saved = await AsyncStorage.getItem(STORAGE_KEY);
     if (saved) {
       setAlarms(JSON.parse(saved));
     } else {
@@ -16,7 +16,7 @@ export const loadAlarms = async setAlarms => {
 
 export const saveAlarms = async alarms => {
   try {
-    await AsyncStorage.setItem('alarms', JSON.stringify(alarms));
+    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(alarms));
   } catch (err) {
     console.log('Error saving alarms', err);
   }

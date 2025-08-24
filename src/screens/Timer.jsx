@@ -1,14 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
-import {
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-  FlatList,
-  Alert,
-} from 'react-native';
+import { Pressable, StyleSheet, Text, View, FlatList } from 'react-native';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
-import Voice from '@react-native-voice/voice';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const Timer = () => {
@@ -28,11 +20,6 @@ const Timer = () => {
 
   useEffect(() => {
     loadTimers();
-    Voice.onSpeechResults = onSpeechResults;
-    Voice.onSpeechError = e => console.log('Voice Error:', e);
-    return () => {
-      Voice.destroy().then(Voice.removeAllListeners);
-    };
   }, []);
 
   useEffect(() => {
@@ -61,63 +48,6 @@ const Timer = () => {
 
   const saveTimers = async () => {
     await AsyncStorage.setItem('timers', JSON.stringify(timers));
-  };
-
-  const startListening = async () => {
-    try {
-      await Voice.start('en-US');
-    } catch (e) {
-      console.log('Voice start error:', e);
-    }
-  };
-
-  const onSpeechResults = e => {
-    const spoken = e.value[0]?.toLowerCase();
-    console.log('Heard:', spoken);
-
-    if (spoken.startsWith('start')) {
-      const title = spoken.replace('start', '').trim();
-      const found = timers.find(t => t.title.toLowerCase() === title);
-      if (found) {
-        startTimer(found.id);
-      } else {
-        Alert.alert('Timer not found');
-      }
-    } else if (spoken.startsWith('add')) {
-      handleAddVoiceTimer(spoken);
-    } else if (spoken.includes('pause') || spoken.includes('stop')) {
-      setIsRunning(false);
-    } else if (spoken.includes('reset')) {
-      setCurrentTime(0);
-      setIsRunning(false);
-      setActiveTimerId(null);
-    } else {
-      Alert.alert(
-        'Unknown Command',
-        'Try "start boil eggs" or "add jump 5 minutes"',
-      );
-    }
-  };
-
-  const handleAddVoiceTimer = sentence => {
-    const parts = sentence.split(' ');
-    const indexOfMinutes = parts.indexOf('minutes');
-    if (indexOfMinutes > 1) {
-      const duration = parseInt(parts[indexOfMinutes - 1]);
-      const title = parts.slice(1, indexOfMinutes - 1).join(' ');
-      if (!isNaN(duration)) {
-        const newTimer = {
-          id: Date.now().toString(),
-          title: title.trim(),
-          duration: duration * 60,
-        };
-        setTimers(prev => [...prev, newTimer]);
-      } else {
-        Alert.alert('Invalid duration');
-      }
-    } else {
-      Alert.alert('Try: add boil eggs 10 minutes');
-    }
   };
 
   const startTimer = id => {
@@ -156,12 +86,8 @@ const Timer = () => {
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.headingText}>Timer</Text>
-        <Pressable style={styles.addBtn} onPress={startListening}>
-          <MaterialIcons name="mic" size={24} color="white" />
-        </Pressable>
       </View>
 
-      {/* Always show main timer at top */}
       <View style={styles.mainTimer}>
         <Text style={styles.mainTimerText}>
           {totalMins}:{totalSecs}
@@ -208,9 +134,6 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 40,
     fontWeight: '400',
-  },
-  addBtn: {
-    alignSelf: 'flex-end',
   },
   mainTimer: {
     marginTop: 20,

@@ -11,88 +11,119 @@ import {
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import PushNotification from 'react-native-push-notification';
-
-const STORAGE_KEY = 'ALARMS_LIST';
+import { loadAlarms, saveAlarms } from './AlarmUtils';
 
 const Alarm = () => {
   const [alarms, setAlarms] = useState([]);
   const [showPicker, setShowPicker] = useState(false);
-
-  const loadAlarms = async () => {
-    try {
-      const stored = await AsyncStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        setAlarms(JSON.parse(stored));
-      }
-    } catch (err) {
-      console.warn('Error loading alarms:', err);
-    }
-  };
-
-  const saveAlarms = async data => {
-    try {
-      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-    } catch (err) {
-      console.warn('Error saving alarms:', err);
-    }
-  };
+  const [editingAlarm, setEditingAlarm] = useState(null);
 
   useEffect(() => {
-    loadAlarms();
+    loadAlarms(setAlarms);
 
     PushNotification.createChannel({
       channelId: 'alarm-channel',
       channelName: 'Alarm Notifications',
+      soundName: 'Alarm.wav',
+      importance: 4,
+      vibrate: true,
     });
   }, []);
 
-  const addAlarm = (event, selectedDate) => {
+  const handleSave = updated => {
+    setAlarms(updated);
+    saveAlarms(updated);
+  };
+
+  const addOrEditAlarm = (event, selectedDate) => {
     setShowPicker(false);
 
     if (!selectedDate || event.type === 'dismissed') return;
 
     const alarmTime = selectedDate;
-
-    const newAlarm = {
-      id: Date.now().toString(),
-      time: alarmTime.toLocaleTimeString([], {
-        hour: '2-digit',
-        minute: '2-digit',
-      }),
-      date: alarmTime,
-    };
-
-    const updated = [...alarms, newAlarm];
-    setAlarms(updated);
-    saveAlarms(updated);
-
-    PushNotification.localNotificationSchedule({
-      channelId: 'alarm-channel',
-      message: `Alarm for ${newAlarm.time}`,
-      date: alarmTime,
-      allowWhileIdle: true,
+    const formattedTime = alarmTime.toLocaleTimeString([], {
+      hour: '2-digit',
+      minute: '2-digit',
     });
 
-    Alert.alert('✅ Alarm Set', `Your alarm is set for ${newAlarm.time}`);
+    let updated;
+    if (editingAlarm) {
+      updated = alarms.map(alarm =>
+        alarm.id === editingAlarm.id
+          ? { ...alarm, time: formattedTime, date: alarmTime }
+          : alarm,
+      );
+      setEditingAlarm(null);
+    } else {
+      const newAlarm = {
+        id: Date.now().toString(),
+        time: formattedTime,
+        date: alarmTime,
+        enabled: true,
+      };
+      updated = [...alarms, newAlarm];
+
+      PushNotification.localNotificationSchedule({
+        channelId: 'alarm-channel',
+        message: `Alarm for ${formattedTime}`,
+        date: alarmTime,
+        allowWhileIdle: true,
+        soundName: 'alarm.wav',
+        playSound: true,
+      });
+
+      Alert.alert('✅ Alarm Set', `Your alarm is set for ${formattedTime}`);
+    }
+
+    handleSave(updated);
+  };
+
+  const toggleAlarm = id => {
+    const updated = alarms.map(alarm =>
+      alarm.id === id ? { ...alarm, enabled: !alarm.enabled } : alarm,
+    );
+    handleSave(updated);
+  };
+
+  const deleteAlarm = id => {
+    const updated = alarms.filter(alarm => alarm.id !== id);
+    handleSave(updated);
+  };
+
+  const editAlarm = alarm => {
+    setEditingAlarm(alarm);
+    setShowPicker(true);
   };
 
   const renderItem = ({ item }) => (
     <View style={styles.alarmItems}>
       <View style={styles.alarmTime}>
         <Text style={styles.alarmTimeText}>{item.time}</Text>
-        <Text style={styles.grayText}>Ring Once</Text>
       </View>
-      <View style={{ alignSelf: 'center' }}>
-        <FontAwesome name="toggle-on" size={28} color="white" />
+      <View style={styles.actions}>
+        <Pressable onPress={() => toggleAlarm(item.id)}>
+          <FontAwesome
+            name={item.enabled ? 'toggle-on' : 'toggle-off'}
+            size={28}
+            color="white"
+          />
+        </Pressable>
+        <Pressable onPress={() => editAlarm(item)} style={{ marginLeft: 15 }}>
+          <MaterialIcons name="edit" size={26} color="#d2c4c4ff" />
+        </Pressable>
+        <Pressable
+          onPress={() => deleteAlarm(item.id)}
+          style={{ marginLeft: 15 }}
+        >
+          <MaterialIcons name="delete" size={26} color="#d2c4c4ff" />
+        </Pressable>
       </View>
     </View>
   );
 
   return (
     <View style={styles.container}>
-      {/* Header */}
       <View style={styles.header}>
         <Text style={styles.headingText}>Alarm</Text>
         <View style={{ flexDirection: 'row' }}>
@@ -103,28 +134,31 @@ const Alarm = () => {
         </View>
       </View>
 
-      {/* List of Alarms */}
       <FlatList
         data={alarms}
         renderItem={renderItem}
         keyExtractor={(item, index) => String(item?.id ?? index)}
       />
 
-      {/* Add Button */}
       <View style={styles.buttonView}>
-        <Pressable style={styles.addButton} onPress={() => setShowPicker(true)}>
+        <Pressable
+          style={styles.addButton}
+          onPress={() => {
+            setEditingAlarm(null);
+            setShowPicker(true);
+          }}
+        >
           <MaterialIcons name="add" size={24} color="white" />
         </Pressable>
       </View>
 
-      {/* DateTime Picker */}
       {showPicker && (
         <DateTimePicker
-          value={new Date()}
+          value={editingAlarm ? new Date(editingAlarm.date) : new Date()}
           mode="time"
           display={Platform.OS === 'ios' ? 'spinner' : 'default'}
           is24Hour={false}
-          onChange={addAlarm}
+          onChange={addOrEditAlarm}
         />
       )}
     </View>
@@ -163,10 +197,9 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 30,
   },
-  grayText: {
-    color: '#d2c4c4ff',
-    fontSize: 14,
-    paddingTop: 5,
+  actions: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   buttonView: {
     position: 'absolute',

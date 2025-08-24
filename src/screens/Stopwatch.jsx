@@ -20,6 +20,7 @@ const Stopwatch = () => {
 
   const startListening = async () => {
     try {
+      await Voice.stop();
       await Voice.start('en-US');
     } catch (e) {
       console.log('Voice start error:', e);
